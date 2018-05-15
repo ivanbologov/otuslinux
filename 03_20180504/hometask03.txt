@@ -1,0 +1,437 @@
+sudo -i
+passwd
+which lsof
+yum -y install lsof
+
+[vagrant@otuslinux ~]$ vgdisplay
+  --- Volume group ---
+  VG Name               VolGroup00
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  3
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                2
+  Open LV               2
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               <38.97 GiB
+  PE Size               32.00 MiB
+  Total PE              1247
+  Alloc PE / Size       1247 / <38.97 GiB
+  Free  PE / Size       0 / 0   
+  VG UUID               dGc57I-fYMz-Paey-V1Pw-yN1w-gPOe-9qc4FM
+   
+[vagrant@otuslinux ~]$ lvdisplay 
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol00
+  LV Name                LogVol00
+  VG Name                VolGroup00
+  LV UUID                JFy25w-Tsx0-5yp0-ehiu-t7Ne-u5hc-rs6idU
+  LV Write Access        read/write
+  LV Creation host, time localhost.localdomain, 2018-04-03 21:42:14 +0000
+  LV Status              available
+  # open                 1
+  LV Size                <37.47 GiB
+  Current LE             1199
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:0
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol01
+  LV Name                LogVol01
+  VG Name                VolGroup00
+  LV UUID                89624j-KIdt-YZqE-jERC-KEiB-Aycr-8FYeB3
+  LV Write Access        read/write
+  LV Creation host, time localhost.localdomain, 2018-04-03 21:42:14 +0000
+  LV Status              available
+  # open                 2
+  LV Size                1.50 GiB
+  Current LE             48
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:1
+   
+[vagrant@otuslinux ~]$ pvdisplay
+  --- Physical volume ---
+  PV Name               /dev/sda3
+  VG Name               VolGroup00
+  PV Size               <39.00 GiB / not usable 30.00 MiB
+  Allocatable           yes (but full)
+  PE Size               32.00 MiB
+  Total PE              1247
+  Free PE               0
+  Allocated PE          1247
+  PV UUID               StnCI5-rd4r-8PPk-FAdf-Y5n1-HMHk-0ic6Sf
+   
+[vagrant@otuslinux ~]$ lsblk
+NAME                    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+sda                       8:0    0   40G  0 disk 
+├─sda1                    8:1    0    1M  0 part 
+├─sda2                    8:2    0    1G  0 part /boot
+└─sda3                    8:3    0   39G  0 part 
+  ├─VolGroup00-LogVol00 253:0    0 37.5G  0 lvm  /
+  └─VolGroup00-LogVol01 253:1    0  1.5G  0 lvm  [SWAP]
+sdb                       8:16   0  250M  0 disk 
+sdc                       8:32   0  250M  0 disk 
+sdd                       8:48   0  250M  0 disk 
+sde                       8:64   0  250M  0 disk 
+sdf                       8:80   0  250M  0 disk 
+sdg                       8:96   0  250M  0 disk 
+
+[vagrant@otuslinux ~]$ df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+/dev/mapper/VolGroup00-LogVol00   38G  2.2G   36G   6% /
+devtmpfs                         488M     0  488M   0% /dev
+tmpfs                            497M     0  497M   0% /dev/shm
+tmpfs                            497M  6.6M  490M   2% /run
+tmpfs                            497M     0  497M   0% /sys/fs/cgroup
+/dev/sda2                       1014M   63M  952M   7% /boot
+tmpfs                            100M     0  100M   0% /run/user/1000
+
+[vagrant@otuslinux ~]$ file -sL /dev/VolGroup00/LogVol00
+/dev/VolGroup00/LogVol00: SGI XFS filesystem data (blksz 4096, inosz 512, v2 dirs)
+
+Применил скрипт на пачку дисков из второй домашки чтобы получить на них RAID50, там получается почти гиг, этого достаточно для файловой системы без папки /vagrant в которой лежат файлы этих дисков, чего я не заметил и не перенес их предварительно в другое место. Отформатировал массив в ext4. Загружаюсь с livecd.
+
+
+vgchange -ay
+mkdir /mnt/{md,root}
+mount /dev/md127p1 /mnt/md
+mount /dev/VolGroup00/LogVol00 /mnt/root
+chattr +d /mnt/root/vagrant/sata*.vdi
+xfsdump -e -f /mnt/md/xfsdump.dmp /mnt/root
+umount /mnt/root
+lvremove /dev/VolGroup00/LogVol00
+lvcreate -L 8G -n LogVol00 VolGroup00
+mkfs.xfs /dev/VolGroup00/LogVol00
+mount /dev/VolGroup00/LogVol00 /mnt/root
+xfsrestore -f /mnt/md/xfsdump.dmp /mnt/root
+mount /dev/sdg2 /mnt/root/boot
+vim /mnt/root/etc/default/grub
+	Поискал rd.lvm.lv, он не изменился
+vim /mnt/root/etc/fstab
+	Были указаны пути к блочным устройствам, а не UUID, ничего менять не нужно
+umount /mnt/root/boot
+umount /mnt/root
+umount /mnt/md
+vgchange -an
+reboot
+
+Загрузился
+
+[vagrant@otuslinux ~]$ df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+/dev/mapper/VolGroup00-LogVol00  8.0G  729M  7.3G   9% /
+devtmpfs                         488M     0  488M   0% /dev
+tmpfs                            497M     0  497M   0% /dev/shm
+tmpfs                            497M  6.7M  490M   2% /run
+tmpfs                            497M     0  497M   0% /sys/fs/cgroup
+/dev/sda2                       1014M   63M  952M   7% /boot
+/dev/md2p1                       961M  672M  224M  76% /mnt
+tmpfs                            100M     0  100M   0% /run/user/1000
+
+sudo lvcreate -L 8G -n home VolGroup00
+sudo mkfs.ext4 /dev/VolGroup00/home
+
+sudo lvdisplay 
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol01
+  LV Name                LogVol01
+  VG Name                VolGroup00
+  LV UUID                89624j-KIdt-YZqE-jERC-KEiB-Aycr-8FYeB3
+  LV Write Access        read/write
+  LV Creation host, time localhost.localdomain, 559220-03-26 18:25:58 +0000
+  LV Status              available
+  # open                 2
+  LV Size                1.50 GiB
+  Current LE             48
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:1
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol00
+  LV Name                LogVol00
+  VG Name                VolGroup00
+  LV UUID                EX9Cou-Lqrd-U7r5-3CH2-o29G-p0b5-bnnvxn
+  LV Write Access        read/write
+  LV Creation host, time sysresccd, 559220-05-01 16:14:23 +0000
+  LV Status              available
+  # open                 1
+  LV Size                8.00 GiB
+  Current LE             256
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:0
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/home
+  LV Name                home
+  VG Name                VolGroup00
+  LV UUID                dpxpGX-plFf-8rkV-M6h5-OqhH-G0W6-Lh4QUj
+  LV Write Access        read/write
+  LV Creation host, time otuslinux, 2018-05-11 15:15:56 +0000
+  LV Status              available
+  # open                 1
+  LV Size                8.00 GiB
+  Current LE             256
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:4
+  
+sudo -i
+[root@otuslinux ~]# lsof /home/vagrant/
+COMMAND  PID    USER   FD   TYPE DEVICE SIZE/OFF    NODE NAME
+bash    1100 vagrant  cwd    DIR  253,0      133 8409186 /home/vagrant
+bash    1132 vagrant  cwd    DIR  253,0      133 8409186 /home/vagrant
+vi      1271 vagrant  cwd    DIR  253,0      133 8409186 /home/vagrant
+sudo    1305    root  cwd    DIR  253,0      133 8409186 /home/vagrant
+
+Завершил сессию ssh vagrant, зашел рутом 
+
+mkdir /tmp/home
+cp -aR /home/vagrant /tmp/home
+
+echo "$(blkid | grep VolGroup00-home | awk '{print $2}') /home ext4 defaults 0 0" >> /etc/fstab
+mount /home
+cp -aR /tmp/home/vagrant /home
+
+Выключил VM, добавил диск 16G для lvm mirror
+
+[vagrant@otuslinux ~]$ lsblk
+NAME                    MAJ:MIN RM   SIZE RO TYPE  MOUNTPOINT
+sda                       8:0    0    40G  0 disk  
+├─sda1                    8:1    0     1M  0 part  
+├─sda2                    8:2    0     1G  0 part  /boot
+└─sda3                    8:3    0    39G  0 part  
+  ├─VolGroup00-LogVol00 253:0    0     8G  0 lvm   /
+  ├─VolGroup00-LogVol01 253:1    0   1.5G  0 lvm   [SWAP]
+  └─VolGroup00-home     253:4    0     8G  0 lvm   /home
+sdb                       8:16   0   250M  0 disk  
+└─md0                     9:0    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sdc                       8:32   0   250M  0 disk  
+└─md0                     9:0    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sdd                       8:48   0   250M  0 disk  
+└─md0                     9:0    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sde                       8:64   0   250M  0 disk  
+└─md1                     9:1    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sdf                       8:80   0   250M  0 disk  
+└─md1                     9:1    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sdg                       8:96   0   250M  0 disk  
+└─md1                     9:1    0   498M  0 raid5 
+  └─md2                   9:2    0   994M  0 raid0 
+    └─md2p1             259:0    0   992M  0 md    /mnt
+sdh                       8:112  0    16G  0 disk  
+sr0                      11:0    1 545.5M  0 rom   
+
+[vagrant@otuslinux ~]$ sudo -i
+[root@otuslinux ~]# pvcreate /dev/sdh
+root@otuslinux ~]# vgextend VolGroup00 /dev/sdh
+  Volume group "VolGroup00" successfully extended
+[root@otuslinux ~]# lvcreate -L 16G -m1 -n var VolGroup00 
+  Insufficient suitable allocatable extents for logical volume var: 4 more required
+[root@otuslinux ~]# lvcreate -L 15G -m1 -n var VolGroup00 
+[root@otuslinux ~]# lsof /var
+[root@otuslinux ~]# cp -aR /var /tmp
+[root@otuslinux ~]# mkfs.ext4 /dev/VolGroup00/var
+[root@otuslinux ~]# echo "$(blkid | grep VolGroup00-var | awk '{print $2}') /var ext4 defaults 0 0" >> /etc/fstab
+[root@otuslinux ~]# mount /var
+[root@otuslinux ~]# cp -aR /tmp/var /
+[root@otuslinux ~]# rm -rf /tmp/var
+[root@otuslinux ~]# df -h
+Filesystem                       Size  Used Avail Use% Mounted on
+/dev/mapper/VolGroup00-LogVol00  8.0G  2.3G  5.8G  29% /
+devtmpfs                         488M     0  488M   0% /dev
+tmpfs                            497M     0  497M   0% /dev/shm
+tmpfs                            497M  6.7M  490M   2% /run
+tmpfs                            497M     0  497M   0% /sys/fs/cgroup
+/dev/sda2                       1014M   63M  952M   7% /boot
+/dev/md2p1                       961M  672M  224M  76% /mnt
+/dev/mapper/VolGroup00-home      7.8G   37M  7.3G   1% /home
+/dev/mapper/VolGroup00-var        15G  132M   14G   1% /var
+tmpfs                            100M     0  100M   0% /run/user/1000
+[root@otuslinux ~]# exit
+[vagrant@otuslinux ~]$ touch file{0,1,2,3,4,5,6,7,8,9}
+[vagrant@otuslinux ~]$ ls -l
+total 192
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file0
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file1
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file2
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file3
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file4
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file5
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file6
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file7
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file8
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file9
+-rw-rw-r--. 1 vagrant vagrant  12126 May  7 22:13 hometask03
+-rw-rw-r--. 1 vagrant vagrant 163104 May 12 15:49 hometask03_2
+-rw-rw-r--. 1 vagrant vagrant  20480 May 12 16:11 testfile-20180512160243
+
+[vagrant@otuslinux ~]$ sudo lvcreate -L 1G -s home -n VolGroup00/home-snap0 VolGroup00
+  Using default stripesize 64.00 KiB.
+  Logical volume "home-snap0" created.
+[vagrant@otuslinux ~]$ sudo lvdisplay 
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol01
+  LV Name                LogVol01
+  VG Name                VolGroup00
+  LV UUID                89624j-KIdt-YZqE-jERC-KEiB-Aycr-8FYeB3
+  LV Write Access        read/write
+  LV Creation host, time localhost.localdomain, 559220-03-26 18:25:58 +0000
+  LV Status              available
+  # open                 2
+  LV Size                1.50 GiB
+  Current LE             48
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:1
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/LogVol00
+  LV Name                LogVol00
+  VG Name                VolGroup00
+  LV UUID                EX9Cou-Lqrd-U7r5-3CH2-o29G-p0b5-bnnvxn
+  LV Write Access        read/write
+  LV Creation host, time sysresccd, 559220-05-01 16:14:23 +0000
+  LV Status              available
+  # open                 1
+  LV Size                8.00 GiB
+  Current LE             256
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:0
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/home
+  LV Name                home
+  VG Name                VolGroup00
+  LV UUID                dpxpGX-plFf-8rkV-M6h5-OqhH-G0W6-Lh4QUj
+  LV Write Access        read/write
+  LV Creation host, time otuslinux, 2018-05-11 15:15:56 +0000
+  LV snapshot status     source of
+                         home-snap0 [active]
+  LV Status              available
+  # open                 1
+  LV Size                8.00 GiB
+  Current LE             256
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:4
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/var
+  LV Name                var
+  VG Name                VolGroup00
+  LV UUID                b7zTUQ-me3N-CLbd-ri8K-PROw-BWMD-ZTSpRg
+  LV Write Access        read/write
+  LV Creation host, time otuslinux, 2018-05-12 21:14:04 +0000
+  LV Status              available
+  # open                 1
+  LV Size                15.00 GiB
+  Current LE             480
+  Mirrored volumes       2
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:7
+   
+  --- Logical volume ---
+  LV Path                /dev/VolGroup00/home-snap0
+  LV Name                home-snap0
+  VG Name                VolGroup00
+  LV UUID                LF3bS0-6Qq2-1yt5-sXLN-GssQ-ULPI-FQSyRT
+  LV Write Access        read/write
+  LV Creation host, time otuslinux, 2018-05-12 22:45:13 +0000
+  LV snapshot status     active destination for home
+  LV Status              available
+  # open                 0
+  LV Size                8.00 GiB
+  Current LE             256
+  COW-table size         1.00 GiB
+  COW-table LE           32
+  Allocated to snapshot  0.00%
+  Snapshot chunk size    4.00 KiB
+  Segments               1
+  Allocation             inherit
+  Read ahead sectors     auto
+  - currently set to     8192
+  Block device           253:10
+   
+[vagrant@otuslinux ~]$ rm -f file{1,3,5,7}
+[vagrant@otuslinux ~]$ ls -l
+total 192
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file0
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file2
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file4
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file6
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file8
+-rw-rw-r--. 1 vagrant vagrant      0 May 12 22:42 file9
+-rw-rw-r--. 1 vagrant vagrant  12126 May  7 22:13 hometask03
+-rw-rw-r--. 1 vagrant vagrant 163104 May 12 15:49 hometask03_2
+-rw-rw-r--. 1 vagrant vagrant  20480 May 12 16:11 testfile-20180512160243
+
+[vagrant@otuslinux ~]$ sudo lvconvert --merge /VolGroup00/home-snap0
+  Can't merge until origin volume is closed.
+  Merging of snapshot VolGroup00/home-snap0 will occur on next activation of VolGroup00/home.
+  
+Дальше я сделал reboot, хотя можно было поробовать 
+umount /home
+lvchange -an /dev/VolGroup00/home-snap0
+lvchange -an /dev/VolGroup00/home
+Попробую попозже
+
+После перезагрузки
+[vagrant@otuslinux ~]$ ls -l 
+total 220K
+drwx------. 3 vagrant vagrant 4.0K May 12 22:42 .
+drwxr-xr-x. 4 root    root    4.0K May 11 15:31 ..
+-rw-------. 1 vagrant vagrant 1022 May 12 15:49 .bash_history
+-rw-r--r--. 1 vagrant vagrant   18 Sep  6  2017 .bash_logout
+-rw-r--r--. 1 vagrant vagrant  193 Sep  6  2017 .bash_profile
+-rw-r--r--. 1 vagrant vagrant  231 Sep  6  2017 .bashrc
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file0
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file1
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file2
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file3
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file4
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file5
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file6
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file7
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file8
+-rw-rw-r--. 1 vagrant vagrant    0 May 12 22:42 file9
+-rw-rw-r--. 1 vagrant vagrant  12K May  7 22:13 hometask03
+-rw-rw-r--. 1 vagrant vagrant 160K May 12 15:49 hometask03_2
+-rw-rw-r--. 1 vagrant vagrant  20K May 12 16:11 testfile-20180512160243
