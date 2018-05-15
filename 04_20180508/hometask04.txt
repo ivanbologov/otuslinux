@@ -1,0 +1,96 @@
+1. Попасть в систему без пароля несколькими способами
+2. Установить систему с LVM, после чего переименовать VG
+3. Добавить модуль в initrd
+
+4(*). Сконфигурировать систему без отдельного раздела с /boot, а только с LVM
+Репозиторий с пропатченым grub: https://yum.rumyantsev.com/centos/7/x86_64/
+PV необходимо инициализировать с параметром --bootloaderareasize 1m
+
+1.
+1.1 Как рекомендуют ман от шапки
+Захожу в меню grub2, в строке с параметрами загзуки 
+	меняю ro на rw
+	удаляю rhgb, quiet
+	дописываю rd.break и enforcing=0
+	
+swithc_root:/# mount
+...
+/dev/mapper/centos-root on /sysroot type ext4 (rw,relatime,data=ordered)
+...
+swithc_root:/# chroot /sysroot
+sh-4.2# passwd
+exit
+exit
+Логинюсь с новым паролем
+restorecon /etc/shadow
+	
+1.2 Загрузка с livecd + отключение selinux
+В livecd:
+
+vgcahnge -ay
+mount /dev/centos/root /mnt
+chroot /mnt /bin/bash -i
+passwd
+exit
+umount /mnt
+vgcahnge -an
+reboot
+
+Захожу в меню grub2, дописываю selinux=0, загружаюсь, захожу. Если selinux не отключить то залогиниться не удасться ни под каким пользователем.
+
+2.
+Загзужаюсь с livecd
+vgdisplay
+vgrename /dev/VolGroup00 /dev/otus_vg00
+vgcahnge -ay
+mount /dev/otus_vg00/LogVol00 /mnt
+vi /mnt/etc/fstab
+	Меняю путь к корневой фс, указан абсолютный путь
+vi /mnt/etc/default/grub
+	Меняю в GRUB_CMDLINE_LINUX rd.lvm.lv с учетом новых путей
+Можно было поменять sed
+lsblk
+mount /dev/sda2 /mnt/boot
+mount -o --bind /dev /mnt/dev
+mount -o --bind /dev/pts /mnt/dev/pts
+mount -o --bind /proc /mnt/proc
+mount -o --bind /run /mnt/run
+mount -o --bind /sys /mnt/sys
+chroot /mnt /bin/bash -i
+grub2-mkconfig -o /etc/grub2.cfg
+exit
+umount /mnt/sys
+umount /mnt/run 
+umount /mnt/proc
+umount /mnt/dev/pts
+umount /mnt/dev
+umount /mnt/boot
+umount /mnt
+vgchange -an
+reboot
+
+3. 
+3.1
+Попробовал распаковать initramfs
+sudo -i
+mkdir initramfs
+cd initramfs
+zcat /boot/initramfs-$(uname -r).img | cpio -i
+ls -la
+
+Попробовал собрать
+find . -print0 | cpio -o --null --format=newc | gzip -q -9 > /boot/test.img
+cd /boot
+mv initramfs-$(uname -r).img initramfs-$(uname -r).img.src
+mv test.img initramfs-$(uname -r).img
+reboot
+
+3.2
+Dracut, просто повторил все что было в презентации
+cd /usr/lib/dracut/modules.d
+mkdir 01test
+cd 01test
+vi module-setup.sh (вставил содержимое из презентации)
+vi test.sh (вставил содержимое из презентации)
+dracut --force
+reboot
