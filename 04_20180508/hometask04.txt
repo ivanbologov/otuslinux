@@ -39,6 +39,7 @@ reboot
 Захожу в меню grub2, дописываю selinux=0, загружаюсь, захожу. Если selinux не отключить то залогиниться не удасться ни под каким пользователем.
 
 2.
+2.1
 Загзужаюсь с livecd
 vgdisplay
 vgrename /dev/VolGroup00 /dev/otus_vg00
@@ -68,6 +69,19 @@ umount /mnt/boot
 umount /mnt
 vgchange -an
 reboot
+
+2.2
+Без livecd
+Рут, без ssh
+# vgrename /dev/otus_vg00 /dev/otus_vg0
+# sed -i 's/otus\_vg00/otus\_vg0/g' /etc/fstab
+# sed -i 's/otus\_vg00/otus\_vg0/g' /etc/default/grub
+# reboot
+Нормально выключиться виртуалка не смогла, выключал принудительно.
+Захожу в меню загрузки grub, нажимаю e, исправляю путь rd.lvm.lv, ctrl+x, ОС загружалась дольше обычного, зашел рутом
+# grub2-mkconfig -o /etc/grub2.cfg
+# reboot
+Все отработало штатно
 
 3. 
 3.1
