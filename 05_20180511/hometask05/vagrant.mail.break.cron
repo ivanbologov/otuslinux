@@ -1,0 +1,8 @@
+SHELL=/bin/bash
+MAILTO=""
+HOME=/home/vagrant
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/home/vagrant/hometask05
+* * * * * /home/vagrant/hometask05/step12.sh notify sender@example.com receiver@example.com /home/vagrant/hometask05/testlock /home/vagrant/hometask05/test.sh /home/vagrant/hometask05/testlock break > /dev/null 2>&1
+
+
+

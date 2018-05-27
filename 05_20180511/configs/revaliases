@@ -1,0 +1,18 @@
+# sSMTP aliases
+# 
+# Format:	local_account:outgoing_address:mailhub
+#
+# Example: root:your_login@your.domain:mailhub.your.domain[:port]
+# where [:port] is an optional port number that defaults to 25.
+root:sender@example.com:smtp.example.com:587
+daemon:sender@example.com:smtp.example.com:587
+bin:sender@example.com:smtp.example.com:587
+sys:sender@example.com:smtp.example.com:587
+mail:sender@example.com:smtp.example.com:587
+www-data:sender@example.com:smtp.example.com:587
+backup:sender@example.com:smtp.example.com:587
+vagrant:sender@example.com:smtp.example.com:587
+MAILER-DAEMON:sender@example.com:smtp.example.com:587
+chrony:sender@example.com:smtp.example.com:587
+postfix:sender@example.com:smtp.example.com:587
+postmaster:sender@example.com:smtp.example.com:587
