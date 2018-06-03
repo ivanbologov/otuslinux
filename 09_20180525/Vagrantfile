@@ -94,118 +94,165 @@ Vagrant.configure("2") do |config|
 
         box.vm.provision "shell", inline: <<-SHELL
           mkdir -p ~root/.ssh
-          #cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/auth*	
+          cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/auth*	
           cp ~vagrant/.ssh/auth* ~root/.ssh
 		  #yum install -y epel-release
 		  #yum install -y vim htop mc traceroute
-		  #yum install -y tcpdump
+		  yum install -y vim tcpdump
 		  ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
 		  grep 'release 7' /etc/centos-release > /dev/null 2>&1
 		  if [[ $? -eq 0 ]]; then
 		    systemctl start chronyd.service
 		    systemctl enable chronyd.service
-		    #yum install -y traceroute
+			systemctl disable firewalld
+			systemctl stop firewalld
+			yum install -y traceroute iptables-services
+			systemctl enable iptables
 		  #else
 		    #init.d commands and centos/6 specific
 		  fi
         SHELL
-        
-        case boxname.to_s
-        when "inetRouter"
+		
+        if boxname.to_s == "inetRouter"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             service network restart
 			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
 			iptables -t nat -A POSTROUTING ! -d 192.168.0.0/16 -o eth0 -j MASQUERADE
+			service iptables save
           SHELL
-        when "centralRouter"
+        elsif boxname.to_s ==  "centralRouter"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.255.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-            sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-            echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
-            sysctl net.ipv4.conf.all.forwarding=1
-
-            cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1:0
-            sed -i '/IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
-            sed -i '/GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
-            echo "IPADDR=192.168.255.5" >> /etc/sysconfig/network-scripts/ifcfg-eth1:0
-            ifup eth1:0
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
 			
-            cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1:1
-            sed -i '/IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:1
-            sed -i '/GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:1
-            echo "IPADDR=192.168.255.9" >> /etc/sysconfig/network-scripts/ifcfg-eth1:1
-            ifup eth1:1
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/DEVICE=/d'  /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			echo "IPADDR=192.168.255.5" >> /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			echo "DEVICE=eth1:0" >> /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			ifup eth1:0
 			
-            ip route add 192.168.22.0/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
-            ip route add 192.168.22.64/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
-            ip route add 192.168.22.128/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
-            ip route add 192.168.22.192/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			sed -i '/IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			sed -i '/GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			sed -i '/DEVICE=/d'  /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			echo "IPADDR=192.168.255.9" >> /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			echo "DEVICE=eth1:1" >> /etc/sysconfig/network-scripts/ifcfg-eth1:1
+			ifup eth1:1
 			
-            ip route add 192.168.21.0/25 dev eth1:0 src 192.168.255.9 via 192.168.255.10
-            ip route add 192.168.21.128/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10
-            ip route add 192.168.21.192/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10
-          
+			ip route add 192.168.22.0/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.64/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.128/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.192/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6
+			
+			ip route add 192.168.21.0/25 dev eth1:1 src 192.168.255.9 via 192.168.255.10
+			ip route add 192.168.21.128/26 dev eth1:1 src 192.168.255.9 via 192.168.255.10
+			ip route add 192.168.21.192/26 dev eth1:1 src 192.168.255.9 via 192.168.255.10
+			
+			echo "192.168.22.0/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1:0
+			echo "192.168.22.64/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1:0
+			echo "192.168.22.128/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1:0
+			echo "192.168.22.192/26 dev eth1:0 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1:0
+			
+			echo "192.168.21.0/25 dev eth1:1 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:1
+            echo "192.168.21.128/26 dev eth1:1 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:1
+			echo "192.168.21.192/26 dev eth1:1 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:1
+			
+			iptables -F
             iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o eth1 -j SNAT --to-source 192.168.255.2			
-			
+			service iptables save
           SHELL
-        when "centralServer"
+        elsif boxname.to_s == "centralServer"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.20.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-	    sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-	    echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
           SHELL
-        when "office1Router"
+        elsif boxname.to_s == "office1Router"
           box.vm.provision "shell", run: "always", inline: <<-SHELL		
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.255.5" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-	    sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-	    echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
             sysctl net.ipv4.conf.all.forwarding=1
-	    ip route add 192.168.20.0/28 src 192.168.255.6 via 192.168.255.5
-	    ip route add 192.168.20.32/28 src 192.168.255.6 via 192.168.255.5
-            ip route add 192.168.20.64/26 src 192.168.255.6 via 192.168.255.5
-	    ip route add 192.168.255.0/30 src 192.168.255.6 via 192.168.255.5
-	    ip route add 192.168.255.8/30 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.20.0/28 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.20.32/28 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.20.64/26 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.255.0/30 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.255.8/30 src 192.168.255.6 via 192.168.255.5
+			
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			echo "192.168.20.0/28 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.32/28 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.64/26 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.0/30 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.8/30 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			
+			iptables -F
+			service iptables save
           SHELL
-        when "office1Server"
+        elsif boxname.to_s == "office1Server"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.22.65" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-	    sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-	    echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
           SHELL
-        when "office2Router"
+        elsif boxname.to_s == "office2Router"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.255.9" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-	    sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-	    echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
-	    sysctl net.ipv4.conf.all.forwarding=1
-	    ip route add 192.168.20.0/28 src 192.168.255.10 via 192.168.255.9
-	    ip route add 192.168.20.32/28 src 192.168.255.10 via 192.168.255.9
-	    ip route add 192.168.20.64/26 src 192.168.255.10 via 192.168.255.9
-	    ip route add 192.168.255.0/30 src 192.168.255.10 via 192.168.255.9
-	    ip route add 192.168.255.4/30 src 192.168.255.10 via 192.168.255.9
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			ip route add 192.168.20.0/28 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.20.32/28 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.20.64/26 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.255.0/30 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.255.4/30 src 192.168.255.10 via 192.168.255.9
+			
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			echo "192.168.20.0/28 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.32/28 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.64/26 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.0/30 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.4/30 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+
+			iptables -F
+			service iptables save
           SHELL
-        when "office2Server"
+        elsif boxname.to_s == "office2Server"
           box.vm.provision "shell", run: "always", inline: <<-SHELL
             echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
             echo "GATEWAY=192.168.21.129" >> /etc/sysconfig/network-scripts/ifcfg-eth1
-	    sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
-	    echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
             systemctl restart network
           SHELL
 		
-	#
+		#
         end
 
       end
