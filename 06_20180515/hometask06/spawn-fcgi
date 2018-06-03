@@ -1,0 +1,3 @@
+#/etc/sysconfig/spawn-fcgi
+SOCKET=/var/run/spawn-fcgi/php-fcgi.sock
+OPTIONS="-u apache -g apache -S -M 0600 -C 32 -F 1 -P /var/run/spawn-fcgi/spawn-fcgi.pid -- /usr/bin/php-cgi"

@@ -1,0 +1,15 @@
+#bloodhound.service is the hometask06 step1
+[Unit]
+Description=bloodhound
+After=syslog.target network.target
+Wants=httpd.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/sysconfig/bloodhoundd.conf
+ExecStart=/usr/local/bin/bloodhound.pl $pattern $file
+
+[Install]
+WantedBy=multi-user.target
