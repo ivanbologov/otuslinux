@@ -1,0 +1,442 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+	# lab 09
+  :inetRouter => {
+        :box_name => "centos/6",
+		:hostname => "inetRouter",
+        #:public => {:ip => '10.10.10.1', :adapter => 1},
+        :net => [
+				   {adapter: 2, virtualbox__intnet: "bond2-net"},
+                   {adapter: 3, virtualbox__intnet: "bond1-net"},
+				   #{ip: '192.168.255.14', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "bond2-net"},
+                   #{ip: '192.168.255.1', adapter: 3, netmask: "255.255.255.252", virtualbox__intnet: "bond1-net"},
+                ]
+  },
+  :centralRouter => {
+        :box_name => "centos/7",
+		:hostname => "centralRouter",
+        :net => [
+                   {ip: '192.168.255.5', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "router-net"},
+                   {ip: '192.168.20.1', adapter: 3, netmask: "255.255.255.240", virtualbox__intnet: "dir-net"},
+                   {ip: '192.168.20.33', adapter: 4, netmask: "255.255.255.240", virtualbox__intnet: "hw-net"},
+                   {ip: '192.168.20.65', adapter: 5, netmask: "255.255.255.192", virtualbox__intnet: "wifi-net"},
+				   {adapter: 6, virtualbox__intnet: "bond2-net"},
+				   {adapter: 7, virtualbox__intnet: "bond1-net"},
+				   #{ip: '192.168.255.13', adapter: 6, netmask: "255.255.255.252", virtualbox__intnet: "bond2-net"},
+				   #{ip: '192.168.255.2', adapter: 7, netmask: "255.255.255.252", virtualbox__intnet: "bond1-net"},
+                ]
+  },
+  
+  :centralServer => {
+        :box_name => "centos/7",
+        :hostname => "centralServer",
+		:net => [
+                   {ip: '192.168.20.2', adapter: 2, netmask: "255.255.255.240", virtualbox__intnet: "dir-net"},
+                   {adapter: 3, auto_config: false, virtualbox__intnet: true},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  :office1Router => {
+        :box_name => "centos/7",
+        :hostname => "office1Router",
+		:net => [
+                   {ip: '192.168.255.6', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "router-net"},
+                   {ip: '192.168.22.1', adapter: 3, netmask: "255.255.255.192", virtualbox__intnet: "o1-dev-net"},
+                   {ip: '192.168.22.65', adapter: 4, netmask: "255.255.255.192", virtualbox__intnet: "o1-testserv-net"},
+				   {ip: '192.168.22.129', adapter: 5, netmask: "255.255.255.192", virtualbox__intnet: "o1-managers-net"},
+				   {ip: '192.168.22.193', adapter: 6, netmask: "255.255.255.192", virtualbox__intnet: "o1-hw-net"},
+                ]
+  },
+  :office1Server => {
+        :box_name => "centos/7",
+        :hostname => "office1Server",
+		:net => [
+                   {ip: '192.168.22.66', adapter: 2, netmask: "255.255.255.192", virtualbox__intnet: "o1-testserv-net"},
+                   {adapter: 3, auto_config: false, virtualbox__intnet: true},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+				   {adapter: 5, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  :office2Router => {
+        :box_name => "centos/7",
+        :hostname => "office2Router",
+		:net => [
+                   {ip: '192.168.255.10', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "router-net"},
+                   {ip: '192.168.21.1', adapter: 3, netmask: "255.255.255.128", virtualbox__intnet: "o2-dev-net"},
+                   {ip: '192.168.21.129', adapter: 4, netmask: "255.255.255.192", virtualbox__intnet: "o2-testserv-net"},
+				   {ip: '192.168.21.193', adapter: 5, netmask: "255.255.255.192", virtualbox__intnet: "o1-hw-net"},
+                ]
+  },
+  :office2Server => {
+        :box_name => "centos/7",
+        :hostname => "office2Server",
+		:net => [
+                   {ip: '192.168.21.130', adapter: 2, netmask: "255.255.255.192", virtualbox__intnet: "o2-testserv-net"},
+				   {adapter: 3, auto_config: false, virtualbox__intnet: true},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  # lab 10
+  # 1
+  :testServer1 => {
+        :box_name => "centos/7",
+        :hostname => "testServer1",
+		:net => [
+                   {adapter: 2, auto_config: false, virtualbox__intnet: "test-lan"},
+				   {ip: '192.168.22.67', adapter: 3, netmask: "255.255.255.192", virtualbox__intnet: "o1-testserv-net"},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  :testClient1 => {
+        :box_name => "centos/7",
+        :hostname => "testClient1",
+		:net => [
+                   {adapter: 2, auto_config: false, virtualbox__intnet: "test-lan"},
+				   {adapter: 3, auto_config: false, virtualbox__intnet: true},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  # 2
+  :testServer2 => {
+        :box_name => "centos/7",
+        :hostname => "testServer2",
+		:net => [
+                   {adapter: 2, auto_config: false, virtualbox__intnet: "test-lan"},
+				   {ip: '192.168.22.68', adapter: 3, netmask: "255.255.255.192", virtualbox__intnet: "o1-testserv-net"},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+    :testClient2 => {
+        :box_name => "centos/7",
+        :hostname => "testClient2",
+		:net => [
+                   {adapter: 2, auto_config: false, virtualbox__intnet: "test-lan"},
+				   {adapter: 3, auto_config: false, virtualbox__intnet: true},
+                   {adapter: 4, auto_config: false, virtualbox__intnet: true},
+                ]
+  },
+  
+}
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+    config.vm.define boxname do |box|
+
+        box.vm.box = boxconfig[:box_name]
+        box.vm.host_name = boxconfig[:hostname].to_s
+
+        boxconfig[:net].each do |ipconf|
+          box.vm.network "private_network", ipconf
+        end
+        
+        if boxconfig.key?(:public)
+          box.vm.network "public_network", boxconfig[:public]
+        end
+		# pre lab
+        box.vm.provision "shell", inline: <<-SHELL
+          mkdir -p ~root/.ssh
+          #cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/authorized_keys
+		  cat /vagrant/vagrant_any_pub >> ~vagrant/.ssh/authorized_keys
+		  cat /vagrant/vagrant_any_pub.private > ~vagrant/.ssh/id_rsa
+		  chown vagrant:vagrant ~vagrant/.ssh/id_rsa
+		  chmod 600 ~vagrant/.ssh/id_rsa
+          cp ~vagrant/.ssh/authorized_keys ~root/.ssh
+		  #yum install -y epel-release
+		  #yum install -y vim htop mc traceroute
+		  yum install -y vim tcpdump
+		  ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+		  grep 'release 7' /etc/centos-release > /dev/null 2>&1
+		  if [[ $? -eq 0 ]]; then
+		    systemctl start chronyd.service
+		    systemctl enable chronyd.service
+			systemctl disable firewalld
+			systemctl stop firewalld
+			yum install -y traceroute iptables-services
+			systemctl enable iptables
+		  #else
+		    #init.d commands and centos/6 specific
+		  fi
+        SHELL
+		# lab 09
+        if boxname.to_s == "inetRouter"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+			echo "SLAVE=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "MASTER=bond0" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "SLAVE=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+			echo "MASTER=bond0" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+            service network restart
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    echo 'NM_CONTROLLED=no' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+            echo 'NOZEROCONF=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+            echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BOOTPROTO=none' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'TYPE=Bond' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'DEVICE=bond0' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BONDING_MASTER=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'IPADDR=192.168.255.17' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'PREFIX=30' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BONDING_OPTS="mode=1 miimon=100 use_carrier=0 primary=eth1"' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			service network restart
+			sysctl net.ipv4.conf.all.forwarding=1
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			iptables -t nat -A POSTROUTING ! -d 192.168.0.0/16 -o eth0 -j MASQUERADE
+			service iptables save
+          SHELL
+        elsif boxname.to_s ==  "centralRouter"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            #TODO set new bond def route to proper interface
+			#echo "GATEWAY=192.168.255.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth5
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth5
+			echo "SLAVE=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth5
+			echo "MASTER=bond0" >> /etc/sysconfig/network-scripts/ifcfg-eth5
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth6
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth6
+			echo "SLAVE=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth6
+			echo "MASTER=bond0" >> /etc/sysconfig/network-scripts/ifcfg-eth6
+            systemctl restart network
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    echo 'NM_CONTROLLED=no' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+            echo 'NOZEROCONF=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+            echo 'PEERDNS=no' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+		    echo 'ONBOOT=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BOOTPROTO=none' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'TYPE=Bond' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'DEVICE=bond0' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BONDING_MASTER=yes' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'IPADDR=192.168.255.18' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'PREFIX=30' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'BONDING_OPTS="mode=1 miimon=100 use_carrier=0 primary=eth5"' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			echo 'GATEWAY=192.168.255.17' >> /etc/sysconfig/network-scripts/ifcfg-bond0
+			service network restart
+		    sysctl net.ipv4.conf.all.forwarding=1
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/IPADDR=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/GATEWAY=/d' /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			sed -i '/DEVICE=/d'  /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			echo "IPADDR=192.168.255.9" >> /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			echo "DEVICE=eth1:0" >> /etc/sysconfig/network-scripts/ifcfg-eth1:0
+			ifup eth1:0
+			
+			ip route add 192.168.22.0/26 dev eth1 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.64/26 dev eth1 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.128/26 dev eth1 src 192.168.255.5 via 192.168.255.6
+			ip route add 192.168.22.192/26 dev eth1 src 192.168.255.5 via 192.168.255.6
+			
+			ip route add 192.168.21.0/25 dev eth1:0 src 192.168.255.9 via 192.168.255.10
+			ip route add 192.168.21.128/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10
+			ip route add 192.168.21.192/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10
+			
+			echo "192.168.22.0/26 dev eth1 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.22.64/26 dev eth1 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.22.128/26 dev eth1 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.22.192/26 dev eth1 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1
+			
+			echo "192.168.21.0/25 dev eth1:0 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:0
+            echo "192.168.21.128/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:0
+			echo "192.168.21.192/26 dev eth1:0 src 192.168.255.9 via 192.168.255.10" >> /etc/sysconfig/network-scripts/route-eth1:0
+			
+			iptables -F
+			iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o bond0 -j SNAT --to-source 192.168.255.18			
+			service iptables save
+          SHELL
+        elsif boxname.to_s == "centralServer"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=192.168.20.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+          SHELL
+        elsif boxname.to_s == "office1Router"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL		
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=192.168.255.5" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+            sysctl net.ipv4.conf.all.forwarding=1
+			ip route add 192.168.20.0/28 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.20.32/28 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.20.64/26 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.255.0/30 src 192.168.255.6 via 192.168.255.5
+			ip route add 192.168.255.8/30 src 192.168.255.6 via 192.168.255.5
+			
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			echo "192.168.20.0/28 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.32/28 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.64/26 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.0/30 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.8/30 src 192.168.255.6 via 192.168.255.5" >> /etc/sysconfig/network-scripts/route-eth1
+			
+			iptables -F
+			service iptables save
+          SHELL
+        elsif boxname.to_s == "office1Server"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=192.168.22.65" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+          SHELL
+        elsif boxname.to_s == "office2Router"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=192.168.255.9" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			ip route add 192.168.20.0/28 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.20.32/28 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.20.64/26 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.255.0/30 src 192.168.255.10 via 192.168.255.9
+			ip route add 192.168.255.4/30 src 192.168.255.10 via 192.168.255.9
+			
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			echo "192.168.20.0/28 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.32/28 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.20.64/26 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.0/30 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+			echo "192.168.255.4/30 src 192.168.255.10 via 192.168.255.9" >> /etc/sysconfig/network-scripts/route-eth1
+
+			iptables -F
+			service iptables save
+          SHELL
+        elsif boxname.to_s == "office2Server"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=192.168.21.129" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+          SHELL
+		# lab 10
+		# 1
+		elsif boxname.to_s == "testServer1"
+		# TODO check does "auto_config: false" works as i expected
+		  box.vm.provision "shell", run: "always", inline: <<-SHELL
+		    modprobe 8021q
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+			echo "GATEWAY=192.168.22.65" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth2
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+            systemctl restart network
+			#sysctl net.ipv4.conf.all.forwarding=1
+			#iptables -F
+          SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    echo "NM_CONTROLLED=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "ONBOOT=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "BOOTPROTO=none" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "DEVICE=eth1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "IPADDR=10.10.10.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "PREFIX=24" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			sed -i '/DEVICE=/d' /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "DEVICE=eth1.10" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "VLAN=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			systemctl restart network
+		  SHELL
+		elsif boxname.to_s == "testClient1"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+		    modprobe 8021q
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+            systemctl restart network
+          SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    echo "NM_CONTROLLED=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "ONBOOT=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "BOOTPROTO=none" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "DEVICE=eth1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "IPADDR=10.10.10.254" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "PREFIX=24" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			sed -i '/DEVICE=/d' /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "DEVICE=eth1.10" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			echo "VLAN=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			#echo "GATEWAY=10.10.10.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1.10
+			systemctl restart network
+		  SHELL
+		# 2
+		elsif boxname.to_s == "testServer2"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+			modprobe 8021q
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+			echo "GATEWAY=192.168.22.65" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth2
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+            systemctl restart network
+			#sysctl net.ipv4.conf.all.forwarding=1
+			#iptables -F
+          SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    echo "NM_CONTROLLED=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "ONBOOT=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "BOOTPROTO=none" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "DEVICE=eth1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "IPADDR=10.10.10.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "PREFIX=24" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			sed -i '/DEVICE=/d' /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "DEVICE=eth1.20" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "VLAN=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			systemctl restart network
+		  SHELL
+		elsif boxname.to_s == "testClient2"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+		    modprobe 8021q
+			echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+			systemctl restart network
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			echo "NM_CONTROLLED=no" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "ONBOOT=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "BOOTPROTO=none" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "DEVICE=eth1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			cp /etc/sysconfig/network-scripts/ifcfg-eth1 /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "IPADDR=10.10.10.254" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "PREFIX=24" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			sed -i '/DEVICE=/d' /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "DEVICE=eth1.20" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			echo "VLAN=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+			#echo "GATEWAY=10.10.10.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1.20
+            systemctl restart network
+          SHELL
+		#
+        end
+
+      end
+
+  end
+  
+  
+end
