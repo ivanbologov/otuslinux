@@ -1,0 +1,180 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+	# lab 11 VPN
+  :inet => {
+        :box_name => "centos/7",
+		:hostname => "inet",
+        :net => [
+				   {ip: '172.16.12.1', netmask: "255.255.255.252", adapter: 2, virtualbox__intnet: "r1-net"},
+                   {ip: '172.16.12.5', netmask: "255.255.255.252", adapter: 3, virtualbox__intnet: "r2-net"},
+                ]
+  },
+  :r1 => {
+        :box_name => "centos/7",
+		:hostname => "r1",
+        :net => [
+                   {ip: '172.16.12.2', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "r1-net"},
+                   {ip: '10.0.11.1', adapter: 3, netmask: "255.255.255.0", virtualbox__intnet: "s1-net"},
+                ]
+  },
+  
+  :r2 => {
+        :box_name => "centos/7",
+        :hostname => "r2",
+		:net => [
+                   {ip: '172.16.12.6', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "r2-net"},
+                   {ip: '10.0.12.1', adapter: 3, netmask: "255.255.255.0", virtualbox__intnet: "s2-net"},
+                ]
+  },
+=begin
+  :s1 => {
+        :box_name => "centos/7",
+        :hostname => "s1",
+		:net => [
+                   {ip: '10.0.11.254', adapter: 2, netmask: "255.255.255.0", virtualbox__intnet: "s1-net"},
+                ]
+  },
+  :s2 => {
+        :box_name => "centos/7",
+        :hostname => "s2",
+		:net => [
+                   {ip: '10.0.12.254', adapter: 2, netmask: "255.255.255.0", virtualbox__intnet: "s2-net"},
+                ]
+  },
+=end
+  
+}
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+    config.vm.define boxname do |box|
+
+        box.vm.box = boxconfig[:box_name]
+        box.vm.host_name = boxconfig[:hostname].to_s
+
+        boxconfig[:net].each do |ipconf|
+          box.vm.network "private_network", ipconf
+        end
+        
+        if boxconfig.key?(:public)
+          box.vm.network "public_network", boxconfig[:public]
+        end
+		# pre lab
+        box.vm.provision "shell", inline: <<-SHELL
+          mkdir -p ~root/.ssh
+          #cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/authorized_keys
+		  cat /vagrant/vagrant_any_pub >> ~vagrant/.ssh/authorized_keys
+		  cat /vagrant/vagrant_any_pub.private > ~vagrant/.ssh/id_rsa
+		  chown vagrant:vagrant ~vagrant/.ssh/id_rsa
+		  chmod 600 ~vagrant/.ssh/id_rsa
+          cp ~vagrant/.ssh/authorized_keys ~root/.ssh
+		  systemctl disable firewalld
+		  systemctl stop firewalld
+		  yum install -y epel-release
+		  # TODO disable next before publish
+		  #yum install -y vim tcpdump traceroute
+		  yum install -y iptables-services openvpn
+		  ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+		  systemctl start chronyd.service
+		  systemctl enable chronyd.service
+		  systemctl enable iptables
+        SHELL
+        if boxname.to_s == "inet"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            service network restart
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			#echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			#iptables -t nat -A POSTROUTING ! -d 192.168.0.0/16 -o eth0 -j MASQUERADE
+			iptables -F
+			service iptables save
+          SHELL
+        elsif boxname.to_s ==  "r1"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+			echo "GATEWAY=172.16.12.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth2
+            systemctl restart network
+			sysctl net.ipv4.conf.all.forwarding=1
+			setenforce 0
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			#echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+			#ip route add 192.168.22.0/26 dev eth1 src 192.168.255.5 via 192.168.255.6
+			#echo "192.168.22.0/26 dev eth1 src 192.168.255.5 via 192.168.255.6" >> /etc/sysconfig/network-scripts/route-eth1
+			iptables -F
+			#iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o bond0 -j SNAT --to-source 192.168.255.18			
+			service iptables save
+			cp /vagrant/static.key /etc/openvpn/
+			chmod 600 /etc/openvpn/static.key
+			cp /vagrant/r1.tun.static.conf /etc/openvpn/r1_tun.conf
+			cp /vagrant/r1.tap.static.conf /etc/openvpn/r1_tap.conf
+			systemctl start openvpn@r1_tun.service
+			#systemctl stop openvpn@r1_tun.service
+			systemctl start openvpn@r1_tap.service
+			#systemctl stop openvpn@r1_tap.service
+          SHELL
+        elsif boxname.to_s == "r2"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=172.16.12.5" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+			setenforce 0
+          SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			iptables -F			
+			service iptables save
+			cp /vagrant/static.key /etc/openvpn/
+			chmod 600 /etc/openvpn/static.key
+			cp /vagrant/r2.tun.static.conf /etc/openvpn/r2_tun.conf
+			cp /vagrant/r2.tap.static.conf /etc/openvpn/r2_tap.conf
+			systemctl start openvpn@r2_tun.service
+			#systemctl stop openvpn@r2_tun.service
+			systemctl start openvpn@r2_tap.service
+			#systemctl stop openvpn@r2_tap.service
+          SHELL
+        elsif boxname.to_s == "s1"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL		
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=10.0.11.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+			#sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			#iptables -F
+			#service iptables save
+          SHELL
+        elsif boxname.to_s == "s2"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0 
+            echo "GATEWAY=10.0.12.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            systemctl restart network
+			#sysctl net.ipv4.conf.all.forwarding=1
+          SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			#iptables -F
+			#service iptables save
+          SHELL
+		#
+        end
+
+      end
+
+  end
+  
+  
+end
