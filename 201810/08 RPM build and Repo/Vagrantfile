@@ -1,0 +1,90 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+  :otuslinux => {
+        :box_name => "centos/7",
+        :ip_addr => '192.168.11.148',
+		:hostname => "HT08t4"
+  },
+}
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+      config.vm.define boxname do |box|
+
+          box.vm.box = boxconfig[:box_name]
+          box.vm.host_name = boxconfig[:hostname].to_s
+
+          #box.vm.network "forwarded_port", guest: 3260, host: 3260+offset
+
+          box.vm.network "private_network", ip: boxconfig[:ip_addr]
+
+          box.vm.provider :virtualbox do |vb|
+            vb.customize ["modifyvm", :id, "--memory", "1024"]
+          end
+
+          box.vm.provision "shell", inline: <<-SHELL
+			mkdir -p ~root/.ssh
+			# TODO before start put your ssh pub key to the target vagrant folder
+			# adding my ssh pub key to the root
+			#cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/auth*
+			#cp ~vagrant/.ssh/auth* ~root/.ssh
+			# push hometask to the home dir
+			#cp -R /vagrant/hometask06 ~vagrant/
+			# not necessary
+			#
+			ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+			systemctl start chronyd.service
+			systemctl enable chronyd.service
+			#
+			yum -y update
+			# installing software
+			yum install -y -q epel-release
+			# need to compile apache
+			yum groupinstall -q -y "Development Tools"
+			yum install -y -q yum install -y zlib-devel libselinux-devel libuuid-devel apr-devel apr-util-devel pcre-devel openldap-devel lua-devel libxml2-devel openssl-devel libnghttp2-devel rpmdevtools rpm-build
+			# i need this to be installed for test http2
+			yum install -y -q libnghttp2 nghttp2
+			
+			setenforce 0
+			
+			yum install -y -q nginx
+			sed -i 's/80/8888/g' /etc/nginx/nginx.conf
+			sed -i '47a\ autoindex on;' /etc/nginx/nginx.conf
+			systemctl start nginx
+			systemctl start nginx
+			
+			rm -rf /usr/share/nginx/html/*
+			chmod -R 777 /usr/share/nginx/html
+			
+			cp /vagrant/rpms/* /usr/share/nginx/html
+			
+			yum install createrepo -y -q
+			# after complinig and copying re run this command
+			createrepo /usr/share/nginx/html
+			echo '[otus]' >> /etc/yum.repos.d/otus.repo
+			echo 'name=Otus-Linux' >> /etc/yum.repos.d/otus.repo
+			echo 'baseurl=http://192.168.11.148:8888' >> /etc/yum.repos.d/otus.repo
+			echo 'enabled=1' >> /etc/yum.repos.d/otus.repo
+			echo 'priority=1' >> /etc/yum.repos.d/otus.repo
+			echo 'gpgcheck=0' >> /etc/yum.repos.d/otus.repo
+
+			yum update -y
+			yum install -y httpd
+			
+			echo 'LoadModule http2_module /usr/lib64/httpd/modules/mod_http2.so' >> /etc/httpd/conf/httpd.conf
+			echo 'Protocols h2 h2c http/1.1' >> /etc/httpd/conf/httpd.conf
+			systemctl restart httpd
+			
+			cp -R /vagrant/do_httpd_rpm.sh ~vagrant
+			chown vagrant:vagrant ~vagrant/do_httpd_rpm.sh
+			
+			# to create httpd rpm run do_httpd_rpm.sh
+			
+		  SHELL
+      end
+  end
+end
