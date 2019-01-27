@@ -1,0 +1,8 @@
+---
+# Runs only on host1
+- name: Install httpd on host1 only
+  hosts: host1
+  become: true
+  strategy: linear
+  roles:
+    - ansible-role-httpd
