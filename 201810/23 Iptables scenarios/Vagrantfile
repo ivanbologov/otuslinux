@@ -1,0 +1,215 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+
+#TODO begin your running from
+# vagrant validate
+
+MACHINES = {
+  :inetRouter => {
+        :box_name => "centos/6",
+        :hostname => "inetRouter",
+        #:public => {:ip => '10.10.10.1', :adapter => 1},
+        :net => [
+                   {ip: '192.168.255.1', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "router-net"},
+                ]
+  },
+  :centralRouter => {
+        :box_name => "centos/7",
+        :hostname => "centralRouter",
+        :net => [
+                   {ip: '192.168.255.2', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "router-net"},
+                   {ip: '192.168.20.1', adapter: 3, netmask: "255.255.255.240", virtualbox__intnet: "dir-net"},
+                ]
+  },
+  
+  :centralServer => {
+        :box_name => "centos/7",
+        :hostname => "centralServer",
+        :net => [
+                   {ip: '192.168.20.2', adapter: 2, netmask: "255.255.255.240", virtualbox__intnet: "dir-net"},
+                   {ip: '192.168.120.2', adapter: 3, netmask: "255.255.255.252", virtualbox__intnet: "ir2-net"},
+                ]
+  },
+  :inetRouter2 => {
+        :box_name => "centos/7",
+        :hostname => "inetRouter2",
+        :net => [
+                   {ip: '192.168.120.1', adapter: 2, netmask: "255.255.255.252", virtualbox__intnet: "ir2-net"},
+                   {ip: '192.168.11.123', adapter: 3, netmask: "255.255.255.0", virtualbox__intnet: false},
+                ]
+  },
+  
+}
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+    config.vm.define boxname do |box|
+
+        box.vm.box = boxconfig[:box_name]
+        box.vm.host_name = boxconfig[:hostname].to_s
+
+        boxconfig[:net].each do |ipconf|
+          box.vm.network "private_network", ipconf
+        end
+        
+        if boxconfig.key?(:public)
+          box.vm.network "public_network", boxconfig[:public]
+        end
+
+        # Prepare all boxes  
+        box.vm.provision "shell", inline: <<-SHELL
+          mkdir -p ~root/.ssh
+          #cat /vagrant/ivan.bologov.key.pub >> ~vagrant/.ssh/auth*    
+          cp ~vagrant/.ssh/auth* ~root/.ssh
+        # Installing software  
+          #yum install -y epel-release
+          #yum install -y vim htop mc traceroute
+          #yum install -y tcpdump
+        # Changing time  
+          #ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
+          #grep 'release 7' /etc/centos-release > /dev/null 2>&1
+          #if [[ $? -eq 0 ]]; then
+          #  systemctl start chronyd.service
+          #  systemctl enable chronyd.service
+          #  yum install -y traceroute
+          #else
+            #init.d commands and centos/6 specific
+          #fi
+        SHELL
+
+#-------if--------
+        if boxname.to_s == "inetRouter"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            service network restart
+			sysctl net.ipv4.conf.all.forwarding=1
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+			service network restart
+			sysctl net.ipv4.conf.all.forwarding=1
+			echo "net.ipv4.conf.all.forwarding = 1" >> /etc/sysctl.conf
+            # allow ssh password auth
+            sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+            service sshd restart
+            # Firewall
+            iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+            # allow ssh connections at vagrant interface
+#            iptables -A INPUT -i lo -j ACCEPT            
+            iptables -A INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
+            iptables -P INPUT DROP
+            # lab's nat/pat for internet access
+			iptables -t nat -A POSTROUTING ! -d 192.168.0.0/16 -o eth0 -j MASQUERADE
+			service iptables save
+            # installing knock-server
+            yum -y install epel-release
+            # knock server for centos/7, but it works)
+            rpm -ivh http://li.nux.ro/download/nux/dextop/el7Server/x86_64/knock-server-0.7-1.el7.nux.x86_64.rpm
+            yum -y install knock-server
+            # config
+            cp /vagrant/knockd.conf /etc/knockd.conf
+            chown root:root /etc/knockd.conf
+            chmod 600 /etc/knockd.conf
+            # start knock-server
+            service knockd start
+            chkconfig knockd on
+          SHELL
+        elsif boxname.to_s ==  "centralRouter"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+            
+			echo "GATEWAY=192.168.255.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            
+            systemctl restart network
+			sysctl net.ipv4.conf.all.forwarding=1
+            iptables -t nat -A POSTROUTING -s 192.168.0.0/16 -o eth1 -j SNAT --to-source 192.168.255.2
+		  SHELL
+		  box.vm.provision "shell", inline: <<-SHELL
+		    yum install -y nmap
+            chmod a+x /vagrant/knock.sh
+            chmod a+x /vagrant/knock2.sh
+            # check knock port
+            #/vagrant/knock.sh vagrant 192.168.255.1 2222 3333 4444
+            #/vagrant/knock2.sh vagrant 192.168.20.2 2222 3333 4444
+		  SHELL
+        elsif boxname.to_s == "centralServer"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL                      
+            echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+            
+            echo "GATEWAY=192.168.20.1" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth1
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth1
+            
+			sed -i 's/NM_CONTROLLED=yes/NM_CONTROLLED=no/' /etc/sysconfig/network-scripts/ifcfg-eth2
+			echo "NOZEROCONF=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth2
+            
+            systemctl restart network
+          SHELL
+          box.vm.provision "shell", inline: <<-SHELL
+            yum install -y epel-release
+            yum install -y nginx
+            systemctl enable nginx
+            systemctl start nginx
+            
+            # allow ssh password auth
+            sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+            systemctl restart sshd
+            
+            # knockd via iptables
+            iptables -P INPUT ACCEPT
+            iptables -F
+            #
+            iptables -A INPUT -i lo -j ACCEPT
+            # allow ssh connections at vagrant interface
+            iptables -A INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
+            # allow connection to nginx at eth2
+            iptables -A INPUT -i eth2 -p tcp --dport 80 -j ACCEPT
+            iptables -P INPUT DROP
+            
+            # knockd
+            iptables -N TRAFFIC
+            iptables -N SSH-INPUT
+            iptables -N SSH-INPUTTWO
+            
+            iptables -A INPUT -j TRAFFIC
+            iptables -A TRAFFIC -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m tcp -p tcp --dport 22 -m recent --rcheck --seconds 30 --name SSH2 -j ACCEPT
+            
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m tcp -p tcp -m recent --name SSH2 --remove -j DROP
+            
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m udp -p udp --dport 4444 -m recent --rcheck --name SSH1 -j SSH-INPUTTWO
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m udp -p udp -m recent --name SSH1 --remove -j DROP
+            
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m udp -p udp --dport 3333 -m recent --rcheck --name SSH0 -j SSH-INPUT
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m udp -p udp -m recent --name SSH0 --remove -j DROP
+            
+            iptables -A TRAFFIC -m conntrack --ctstate NEW -m udp -p udp --dport 2222 -m recent --name SSH0 --set -j DROP
+            iptables -A SSH-INPUT -m recent --name SSH1 --set -j DROP
+            iptables -A SSH-INPUTTWO -m recent --name SSH2 --set -j DROP 
+            iptables -A TRAFFIC -j DROP
+            #
+          SHELL
+        elsif boxname.to_s == "inetRouter2"
+          box.vm.provision "shell", run: "always", inline: <<-SHELL
+            #echo "DEFROUTE=no" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+            systemctl restart network
+            sysctl net.ipv4.conf.all.forwarding=1
+            iptables -t nat -A PREROUTING -p tcp -i eth2 --dport 8080 -j DNAT --to-destination 192.168.120.2:80
+            iptables -t nat -A POSTROUTING -p tcp -d 192.168.120.2 --dport 80 -j SNAT --to-source 192.168.120.1
+            # check getting http://192.168.11.123:8080/ from host
+          SHELL
+        end
+#-------if--------
+
+      end
+
+  end
+  
+  
+end
+
