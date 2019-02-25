@@ -22,4 +22,12 @@
 
 В качестве системы мониторинга выбран zabbix, развернут с помощью ansible от Алексея
 
-Скрины есть. Задание со зведочкой не делал.
+Задание со зведочкой не делал.
+
+![alt text](https://raw.githubusercontent.com/ivanbologov/otuslinux/master/201810/16%20Monitoring%20setup%20(zabbix)/16_zabbix_screenshot_at_2019-02-25_23.05.20-fullpage.png)
+
+![alt text](https://raw.githubusercontent.com/ivanbologov/otuslinux/master/201810/16%20Monitoring%20setup%20(zabbix)/16_zabbix_screenshot_at_2019-02-25_22.33.29-fullpage.png)
+
+![alt text](https://raw.githubusercontent.com/ivanbologov/otuslinux/master/201810/16%20Monitoring%20setup%20(zabbix)/16_zabbix_screenshot_at_2019-02-25_23.03.04-fullpage.png)
+
+![alt text](https://raw.githubusercontent.com/ivanbologov/otuslinux/master/201810/16%20Monitoring%20setup%20(zabbix)/16_zabbix_screenshot_at_2019-02-25_23.03.30-fullpage.png)
