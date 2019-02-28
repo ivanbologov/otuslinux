@@ -1,0 +1,92 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+  :log => {
+        :box_name => "centos/7",
+        :ip_addr => '192.168.11.115',
+        #:hostname => "log",
+  },
+  :web => {
+        :box_name => "centos/7",
+        :ip_addr => '192.168.11.215',
+        #:hostname => "web",
+  }
+}
+
+# always begin with vagrant validate
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+      config.vm.define boxname do |box|
+
+          box.vm.box = boxconfig[:box_name]
+          #box.vm.host_name = boxconfig[:hostname].to_s
+          box.vm.host_name = boxname.to_s
+
+          #box.vm.network "forwarded_port", guest: 3260, host: 3260+offset
+
+          box.vm.network "private_network", ip: boxconfig[:ip_addr]
+
+          box.vm.provider :virtualbox do |vb|
+            vb.customize ["modifyvm", :id, "--memory", "200"]
+            # Подключаем дополнительные диски
+            #vb.customize ['createhd', '--filename', second_disk, '--format', 'VDI', '--size', 5 * 1024]
+            #vb.customize ['storageattach', :id, '--storagectl', 'IDE', '--port', 0, '--device', 1, '--type', 'hdd', '--medium', second_disk]
+          end
+          
+          box.vm.provision "shell", inline: <<-SHELL
+            mkdir -p ~root/.ssh; cp ~vagrant/.ssh/auth* ~root/.ssh
+            sed -i '65s/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+            systemctl restart sshd
+          SHELL
+          
+          if boxname.to_s == "log"
+            box.vm.provision "shell", inline: <<-SHELL            
+              sed -i -e '15i module(load="imudp")' /etc/rsyslog.conf
+              sed -i -e '16i input(type="imudp" port="514")' /etc/rsyslog.conf        
+              #sed -i -e 's/#$ModLoad imudp/$ModLoad imudp/' /etc/rsyslog.conf
+              #sed -i -e 's/#$UDPServerRun 514/$UDPServerRun 514/' /etc/rsyslog.conf
+              sed -i -e '24i $template PerHostLogs,\"/var/log/remote/%hostname%-%fromhost-ip%/%programname%.log\" \n' /etc/rsyslog.conf
+              sed -i -e '25i :inputname, isequal, \"imudp\" ?PerHostLogs \n' /etc/rsyslog.conf
+              sed -i -e '26i & stop \n' /etc/rsyslog.conf
+              
+              systemctl restart rsyslog.service
+              
+              sed -i -e 's/##tcp_listen_port = 60/tcp_listen_port = 60/' /etc/audit/auditd.conf
+              /sbin/service auditd restart
+              
+            SHELL
+          elsif boxname.to_s ==  "web"
+            box.vm.provision "shell", inline: <<-SHELL
+              yum install -y epel-release
+              yum install -y nginx
+              systemctl enable nginx
+			  systemctl start nginx
+              # need a plugins to remote send auditd.log
+              yum install -y audispd-plugins
+              
+              # sending all errors to remote log server
+              echo '*.err @192.168.11.115:514' >> /etc/rsyslog.conf
+              # next one will not send audit messages
+              #sed -i -e '75i audit.* @192.168.11.115:514' /etc/rsyslog.conf
+              systemctl restart rsyslog.service
+
+              cp /vagrant/web.sh /root
+              chown root:root /root/web.sh
+              chmod 755 /root/web.sh
+              /root/web.sh
+            SHELL
+          end
+#begin 
+#          box.vm.provision "ansible" do |ansible|
+#            ansible.verbose = "vv"
+#            ansible.playbook = "provision/playbook.yml"
+#            ansible.become = "true"
+#          end
+#end
+      end
+  end
+end
